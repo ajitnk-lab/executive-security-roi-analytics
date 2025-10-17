@@ -11,8 +11,8 @@ logger.setLevel(logging.DEBUG)
 # Initialize Bedrock Agent Runtime client
 bedrock_client = boto3.client('bedrock-agent-runtime', region_name='us-east-1')
 
-AGENT_ID = 'DTAX1II3AK'
-AGENT_ALIAS_ID = 'GCWHOE7WNP'
+AGENT_ID = 'JLSWUUM4RG'
+AGENT_ALIAS_ID = 'TSTALIASID'
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """

@@ -1,7 +1,7 @@
 import { BedrockAgentRuntimeClient, InvokeAgentCommand } from '@aws-sdk/client-bedrock-agent-runtime';
 
-const AGENT_ID = 'DTAX1II3AK';
-const AGENT_ALIAS_ID = 'GCWHOE7WNP';
+const AGENT_ID = 'JLSWUUM4RG';
+const AGENT_ALIAS_ID = 'HOYXBIYTSL';
 const REGION = 'us-east-1';
 
 class BedrockService {
