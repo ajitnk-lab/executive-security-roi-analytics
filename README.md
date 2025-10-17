@@ -25,10 +25,10 @@ Security MCP    Cost MCP    ROI MCP
 ├── infrastructure/               # CDK Infrastructure as Code
 │   ├── stacks/                  # CDK Stack definitions
 │   └── constructs/              # Custom CDK constructs
-├── mcp-servers/                 # MCP Server implementations
-│   ├── security-mcp/           # Security assessment MCP server
-│   ├── cost-mcp/               # Cost analysis MCP server
-│   └── roi-analytics-mcp/      # ROI analytics MCP server
+├── agentcore-services/          # AgentCore Runtime services
+│   ├── security-service/       # Security assessment AgentCore service
+│   ├── cost-service/           # Cost analysis AgentCore service
+│   └── roi-analytics-service/  # ROI analytics AgentCore service
 ├── adapters/                    # Protocol adapters
 │   └── mcp-adapter/            # Bedrock Agent to MCP Gateway adapter
 ├── dashboard/                   # Executive Dashboard
