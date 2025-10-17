@@ -19,18 +19,6 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         path = event.get('path', '')
         body = event.get('body', '{}')
         
-        # Check for authentication
-        auth_context = event.get('requestContext', {}).get('authorizer', {})
-        if not auth_context.get('claims'):
-            return {
-                'statusCode': 401,
-                'headers': {
-                    'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': '*'
-                },
-                'body': json.dumps({'error': 'Unauthorized'})
-            }
-        
         if body:
             body_data = json.loads(body)
         else:
@@ -52,7 +40,28 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'body': json.dumps({'message': 'OK'})
             }
         
-        # Route requests
+        # Health endpoint (no auth required)
+        if path == '/health' and http_method == 'GET':
+            return {
+                'statusCode': 200,
+                'headers': headers,
+                'body': json.dumps({
+                    'status': 'healthy',
+                    'timestamp': '2025-10-17T13:11:39.285Z',
+                    'service': 'Executive Dashboard API'
+                })
+            }
+        
+        # Check for authentication for protected endpoints
+        auth_context = event.get('requestContext', {}).get('authorizer', {})
+        if not auth_context.get('claims'):
+            return {
+                'statusCode': 401,
+                'headers': headers,
+                'body': json.dumps({'error': 'Unauthorized - Authentication required'})
+            }
+        
+        # Route protected requests
         if path == '/chat' and http_method == 'POST':
             return handle_chat(body_data, headers, auth_context)
         elif path == '/metrics' and http_method == 'GET':
@@ -71,7 +80,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            'body': json.dumps({'error': str(e)})
+            'body': json.dumps({'error': f'Internal server error: {str(e)}'})
         }
 
 def handle_chat(body_data: Dict[str, Any], headers: Dict[str, str], auth_context: Dict[str, Any]) -> Dict[str, Any]:
@@ -138,7 +147,7 @@ def handle_metrics(headers: Dict[str, str], auth_context: Dict[str, Any]) -> Dic
                 'change': '+2 pts',
                 'trend': 'up'
             },
-            'lastUpdated': '2025-10-17T12:26:17.080Z',
+            'lastUpdated': '2025-10-17T13:11:39.285Z',
             'user': auth_context.get('claims', {}).get('email', 'Unknown')
         }
         

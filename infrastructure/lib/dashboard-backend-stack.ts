@@ -7,7 +7,7 @@ import { Construct } from 'constructs';
 
 export interface DashboardBackendStackProps extends cdk.StackProps {
   agentCoreRole: iam.Role;
-  authorizer?: apigateway.CognitoUserPoolsAuthorizer;
+  userPool?: cognito.UserPool;
 }
 
 export class DashboardBackendStack extends cdk.Stack {
@@ -41,21 +41,34 @@ export class DashboardBackendStack extends cdk.Stack {
       }
     });
 
+    // Create Cognito authorizer if user pool is provided
+    let authorizer: apigateway.CognitoUserPoolsAuthorizer | undefined;
+    if (props.userPool) {
+      authorizer = new apigateway.CognitoUserPoolsAuthorizer(this, 'CognitoAuthorizer', {
+        cognitoUserPools: [props.userPool],
+        authorizerName: 'ExecutiveDashboardAuthorizer'
+      });
+    }
+
     // Create Lambda integration
     const lambdaIntegration = new apigateway.LambdaIntegration(this.dashboardFunction);
 
-    // Add chat endpoint with optional authentication
+    // Add health endpoint (no auth required)
+    const healthResource = this.api.root.addResource('health');
+    healthResource.addMethod('GET', lambdaIntegration);
+
+    // Add chat endpoint with authentication
     const chatResource = this.api.root.addResource('chat');
     chatResource.addMethod('POST', lambdaIntegration, {
-      authorizer: props.authorizer,
-      authorizationType: props.authorizer ? apigateway.AuthorizationType.COGNITO : apigateway.AuthorizationType.NONE
+      authorizer: authorizer,
+      authorizationType: authorizer ? apigateway.AuthorizationType.COGNITO : apigateway.AuthorizationType.NONE
     });
 
-    // Add metrics endpoint with optional authentication
+    // Add metrics endpoint with authentication
     const metricsResource = this.api.root.addResource('metrics');
     metricsResource.addMethod('GET', lambdaIntegration, {
-      authorizer: props.authorizer,
-      authorizationType: props.authorizer ? apigateway.AuthorizationType.COGNITO : apigateway.AuthorizationType.NONE
+      authorizer: authorizer,
+      authorizationType: authorizer ? apigateway.AuthorizationType.COGNITO : apigateway.AuthorizationType.NONE
     });
 
     // Outputs

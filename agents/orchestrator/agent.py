@@ -8,9 +8,12 @@ through the AgentCore Gateway based on query intent and context.
 import json
 import boto3
 import requests
+from botocore.auth import SigV4Auth
+from botocore.awsrequest import AWSRequest
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timedelta
 import logging
+import os
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -25,6 +28,8 @@ class SecurityROIOrchestrator:
     def __init__(self, gateway_url: str):
         self.gateway_url = gateway_url.rstrip('/')
         self.bedrock = boto3.client('bedrock-runtime')
+        self.session = boto3.Session()
+        self.credentials = self.session.get_credentials()
         
         # Tool routing configuration
         self.tool_routing = {
@@ -68,6 +73,12 @@ class SecurityROIOrchestrator:
             'suggested_tools': self.tool_routing[primary_intent]['tools']
         }
 
+    def _sign_request(self, method: str, url: str, data: str = None) -> Dict[str, str]:
+        """Sign AWS request with SigV4"""
+        request = AWSRequest(method=method, url=url, data=data)
+        SigV4Auth(self.credentials, 'execute-api', 'us-east-1').add_auth(request)
+        return dict(request.headers)
+
     def route_to_mcp(self, intent: str, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Route request to appropriate MCP server via AgentCore Gateway."""
         try:
@@ -81,10 +92,15 @@ class SecurityROIOrchestrator:
             
             logger.info(f"Routing to {url} with tool {tool_name}")
             
+            # Sign the request with AWS SigV4
+            data = json.dumps(payload)
+            headers = self._sign_request('POST', url, data)
+            headers['Content-Type'] = 'application/json'
+            
             response = requests.post(
                 url,
-                json=payload,
-                headers={'Content-Type': 'application/json'},
+                data=data,
+                headers=headers,
                 timeout=30
             )
             

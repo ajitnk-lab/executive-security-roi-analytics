@@ -123,6 +123,27 @@ export class AgentCoreStack extends cdk.Stack {
     this.agentCoreRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
       actions: [
+        'bedrock:InvokeAgent',
+        'bedrock:InvokeModel',
+        'bedrock:GetAgent',
+        'bedrock:GetAgentAlias',
+      ],
+      resources: ['*'],
+    }));
+
+    // Add permissions for API Gateway execution
+    this.agentCoreRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'execute-api:Invoke',
+      ],
+      resources: ['*'],
+    }));
+
+    // Add permissions for Bedrock Agent
+    this.agentCoreRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
         'bedrock:InvokeModel',
         'bedrock:InvokeModelWithResponseStream',
         'bedrock:GetAgent',

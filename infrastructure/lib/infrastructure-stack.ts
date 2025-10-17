@@ -1,4 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
+import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import { Construct } from 'constructs';
 import { AgentCoreStack } from './agentcore-stack';
 import { MCPDeploymentStack } from './mcp-deployment-stack';
@@ -40,15 +41,16 @@ export class InfrastructureStack extends cdk.Stack {
       gateway: gatewayStack.gateway,
     });
 
-    // Dashboard Backend Stack (without auth initially)
-    const dashboardBackendStack = new DashboardBackendStack(this, 'DashboardBackend', {
-      description: 'Backend API for Executive Dashboard',
-      agentCoreRole: agentCoreStack.agentCoreRole,
-    });
-
     // Authentication Stack
     const authStack = new AuthStack(this, 'Authentication', {
       description: 'Authentication and authorization for Executive Dashboard',
+    });
+
+    // Dashboard Backend Stack with authentication
+    const dashboardBackendStack = new DashboardBackendStack(this, 'DashboardBackend', {
+      description: 'Backend API for Executive Dashboard',
+      agentCoreRole: agentCoreStack.agentCoreRole,
+      userPool: authStack.userPool,
     });
 
     // Frontend Deployment Stack
@@ -60,8 +62,7 @@ export class InfrastructureStack extends cdk.Stack {
     mcpDeploymentStack.addDependency(agentCoreStack);
     gatewayStack.addDependency(mcpDeploymentStack);
     bedrockAgentStack.addDependency(gatewayStack);
-    dashboardBackendStack.addDependency(bedrockAgentStack);
-    authStack.addDependency(dashboardBackendStack);
-    frontendStack.addDependency(authStack);
+    dashboardBackendStack.addDependency(authStack);
+    frontendStack.addDependency(dashboardBackendStack);
   }
 }
