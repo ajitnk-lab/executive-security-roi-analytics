@@ -85,9 +85,10 @@ class SecurityROIOrchestrator:
             endpoint = self.tool_routing[intent]['endpoint']
             url = f"{self.gateway_url}{endpoint}"
             
+            # Use correct MCP protocol format
             payload = {
-                'tool': tool_name,
-                'parameters': parameters
+                'tool_name': tool_name,
+                'arguments': parameters
             }
             
             logger.info(f"Routing to {url} with tool {tool_name}")
@@ -272,23 +273,88 @@ class SecurityROIOrchestrator:
 def lambda_handler(event, context):
     """AWS Lambda handler for Bedrock Agent integration."""
     try:
-        # Extract query from Bedrock Agent event
-        query = event.get('inputText', '')
-        session_attributes = event.get('sessionAttributes', {})
+        logger.info(f"Received event: {json.dumps(event)}")
+        
+        # Handle different event formats from Bedrock Agent
+        query = ""
+        session_attributes = {}
+        
+        # Check if this is a direct Bedrock Agent invocation
+        if 'inputText' in event:
+            query = event.get('inputText', '')
+            session_attributes = event.get('sessionAttributes', {})
+        # Check if this is an action group invocation
+        elif 'requestBody' in event:
+            request_body = event.get('requestBody', {})
+            if 'content' in request_body:
+                content = request_body['content']
+                if 'application/json' in content:
+                    json_content = json.loads(content['application/json'])
+                    query = json_content.get('query', '')
+                    session_attributes = json_content.get('context', {})
+        # Check if this is a simple query in the event
+        elif 'query' in event:
+            query = event.get('query', '')
+            session_attributes = event.get('context', {})
+        else:
+            # Fallback - try to extract from event body
+            query = str(event)
+            
+        logger.info(f"Extracted query: {query}")
+        
+        if not query:
+            return {
+                'statusCode': 400,
+                'body': json.dumps({
+                    'error': 'No query found in event',
+                    'event_received': event
+                })
+            }
         
         # Initialize orchestrator
-        gateway_url = "https://yko4kspo9e.execute-api.us-east-1.amazonaws.com/prod"
+        gateway_url = os.environ.get('GATEWAY_URL', "https://yko4kspo9e.execute-api.us-east-1.amazonaws.com/prod")
         orchestrator = SecurityROIOrchestrator(gateway_url)
         
         # Process query
         response = orchestrator.process_executive_query(query, session_attributes)
         
         # Format response for Bedrock Agent
+        if 'error' in response:
+            # Return a user-friendly error message
+            response_text = f"I encountered an issue while processing your request: {response.get('summary', 'Please try rephrasing your question.')}"
+        else:
+            # Format the response based on intent
+            intent = response.get('intent', 'general')
+            results = response.get('results', {})
+            
+            if intent == 'cost':
+                response_text = f"Here's your security cost analysis:\n\n{response.get('summary', 'Cost analysis completed.')}"
+                if 'cost_breakdown' in results:
+                    cost_data = results['cost_breakdown']
+                    if isinstance(cost_data, dict) and 'result' in cost_data:
+                        response_text += f"\n\nDetails: {cost_data['result']}"
+            elif intent == 'security':
+                response_text = f"Here's your security status:\n\n{response.get('summary', 'Security analysis completed.')}"
+                if 'security_status' in results:
+                    security_data = results['security_status']
+                    if isinstance(security_data, dict) and 'result' in security_data:
+                        response_text += f"\n\nDetails: {security_data['result']}"
+            elif intent == 'roi':
+                response_text = f"Here's your ROI analysis:\n\n{response.get('summary', 'ROI analysis completed.')}"
+                if 'roi_calculation' in results:
+                    roi_data = results['roi_calculation']
+                    if isinstance(roi_data, dict) and 'result' in roi_data:
+                        response_text += f"\n\nDetails: {roi_data['result']}"
+            else:
+                response_text = f"Analysis complete: {response.get('summary', 'I have processed your request.')}"
+        
+        # Return in Bedrock Agent format
         return {
             'statusCode': 200,
             'body': json.dumps({
-                'response': response,
-                'sessionAttributes': session_attributes
+                'application/json': {
+                    'body': response_text
+                }
             })
         }
         
@@ -297,6 +363,8 @@ def lambda_handler(event, context):
         return {
             'statusCode': 500,
             'body': json.dumps({
-                'error': str(e)
+                'application/json': {
+                    'body': f"I'm sorry, I encountered an error processing your request. Please try again or rephrase your question."
+                }
             })
         }
