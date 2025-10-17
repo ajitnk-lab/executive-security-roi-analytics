@@ -1,0 +1,21 @@
+{
+  "name": "executive-security-roi-analytics",
+  "version": "1.0.0",
+  "description": "AI-powered executive dashboard for analyzing security investments, costs, and ROI using AWS services and AgentCore runtime",
+  "scripts": {
+    "build": "npm run build:infrastructure && npm run build:dashboard",
+    "build:infrastructure": "cd infrastructure && npm run build",
+    "build:dashboard": "cd dashboard/frontend && npm run build",
+    "test": "npm run test:infrastructure && npm run test:mcp",
+    "test:infrastructure": "cd infrastructure && npm test",
+    "test:mcp": "cd mcp-servers && python -m pytest",
+    "deploy": "./scripts/deploy.sh",
+    "setup": "./scripts/setup.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ajitnk-lab/executive-security-roi-analytics.git"
+  },
+  "author": "ajitnk-lab",
+  "license": "MIT"
+}
