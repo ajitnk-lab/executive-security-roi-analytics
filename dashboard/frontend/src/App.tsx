@@ -1,254 +1,253 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, DollarSign, TrendingUp, MessageCircle } from 'lucide-react';
-import { apiService, MetricsResponse } from './services/apiService';
 import './App.css';
+import './aws-config'; // Initialize AWS Amplify
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import LoginForm from './components/LoginForm';
+import { apiService, MetricsResponse } from './services/apiService';
 
-interface MetricCard {
-  title: string;
-  value: string;
-  change: string;
-  icon: React.ReactNode;
-  color: string;
-}
-
-interface ChatMessage {
-  id: string;
-  text: string;
-  sender: 'user' | 'agent';
-  timestamp: Date;
-}
-
-function App() {
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      text: 'Hello! I\'m your Security ROI Analytics Assistant. Ask me about your security investments, costs, or ROI.',
-      sender: 'agent',
-      timestamp: new Date()
-    }
-  ]);
-  const [inputMessage, setInputMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+// Dashboard Component (authenticated content)
+const Dashboard: React.FC = () => {
   const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [chatMessage, setChatMessage] = useState('');
+  const [chatHistory, setChatHistory] = useState<Array<{type: 'user' | 'assistant', message: string}>>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const { user, logout, getAuthToken } = useAuth();
 
-  // Load metrics on component mount
   useEffect(() => {
     loadMetrics();
   }, []);
 
   const loadMetrics = async () => {
-    const metricsData = await apiService.getMetrics();
-    if (metricsData) {
-      setMetrics(metricsData);
+    try {
+      const token = await getAuthToken();
+      const data = await apiService.getMetrics(token || undefined);
+      setMetrics(data);
+    } catch (error) {
+      console.error('Error loading metrics:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getMetricCards = (): MetricCard[] => {
-    if (!metrics) {
-      return [
-        {
-          title: 'Security ROI',
-          value: 'Loading...',
-          change: '',
-          icon: <TrendingUp className="w-6 h-6" />,
-          color: 'text-green-600'
-        },
-        {
-          title: 'Monthly Security Spend',
-          value: 'Loading...',
-          change: '',
-          icon: <DollarSign className="w-6 h-6" />,
-          color: 'text-blue-600'
-        },
-        {
-          title: 'Security Score',
-          value: 'Loading...',
-          change: '',
-          icon: <Shield className="w-6 h-6" />,
-          color: 'text-purple-600'
-        }
-      ];
-    }
+  const handleChatSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatMessage.trim()) return;
 
-    return [
-      {
-        title: 'Security ROI',
-        value: metrics.securityROI.value,
-        change: metrics.securityROI.change,
-        icon: <TrendingUp className="w-6 h-6" />,
-        color: 'text-green-600'
-      },
-      {
-        title: 'Monthly Security Spend',
-        value: metrics.monthlySpend.value,
-        change: metrics.monthlySpend.change,
-        icon: <DollarSign className="w-6 h-6" />,
-        color: 'text-blue-600'
-      },
-      {
-        title: 'Security Score',
-        value: metrics.securityScore.value,
-        change: metrics.securityScore.change,
-        icon: <Shield className="w-6 h-6" />,
-        color: 'text-purple-600'
-      }
-    ];
-  };
-
-  const handleSendMessage = async () => {
-    if (!inputMessage.trim()) return;
-
-    const userMessage: ChatMessage = {
-      id: Date.now().toString(),
-      text: inputMessage,
-      sender: 'user',
-      timestamp: new Date()
-    };
-
-    setChatMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
-    setIsLoading(true);
+    const userMessage = chatMessage.trim();
+    setChatMessage('');
+    setChatHistory(prev => [...prev, { type: 'user', message: userMessage }]);
+    setChatLoading(true);
 
     try {
-      const response = await apiService.sendChatMessage(inputMessage);
-      
-      const agentMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        text: response,
-        sender: 'agent',
-        timestamp: new Date()
-      };
-      
-      setChatMessages(prev => [...prev, agentMessage]);
+      const token = await getAuthToken();
+      const response = await apiService.sendChatMessage(userMessage, 'executive-session', token || undefined);
+      setChatHistory(prev => [...prev, { type: 'assistant', message: response }]);
     } catch (error) {
-      const errorMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        text: 'Sorry, I encountered an error processing your request. Please try again.',
-        sender: 'agent',
-        timestamp: new Date()
-      };
-      setChatMessages(prev => [...prev, errorMessage]);
+      console.error('Error sending message:', error);
+      setChatHistory(prev => [...prev, { type: 'assistant', message: 'Sorry, I encountered an error. Please try again.' }]);
     } finally {
-      setIsLoading(false);
+      setChatLoading(false);
     }
   };
 
-  const metricCards = getMetricCards();
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
-            <h1 className="text-2xl font-bold text-gray-900">Executive Security ROI Dashboard</h1>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Executive Security Dashboard</h1>
+              <p className="text-sm text-gray-600">Security ROI Analytics & Intelligence</p>
+            </div>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-500">
-                Last updated: {metrics?.lastUpdated ? new Date(metrics.lastUpdated).toLocaleTimeString() : 'Loading...'}
-              </span>
+              <span className="text-sm text-gray-600">Welcome, {user?.email || user?.username}</span>
+              <button
+                onClick={handleLogout}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+              >
+                Sign Out
+              </button>
             </div>
           </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          
-          {/* Metrics Cards */}
-          <div className="lg:col-span-2">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              {metricCards.map((metric, index) => (
-                <div key={index} className="bg-white rounded-lg shadow p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-600">{metric.title}</p>
-                      <p className="text-2xl font-bold text-gray-900">{metric.value}</p>
-                      {metric.change && (
-                        <p className={`text-sm ${metric.color}`}>{metric.change} from last month</p>
-                      )}
-                    </div>
-                    <div className={metric.color}>
-                      {metric.icon}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Summary Section */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Executive Summary</h2>
-              <div className="space-y-4">
-                <div className="border-l-4 border-green-500 pl-4">
-                  <h3 className="font-medium text-gray-900">Security Investment Performance</h3>
-                  <p className="text-gray-600">Your security ROI has improved by 3.2% this month, indicating strong value from recent investments.</p>
-                </div>
-                <div className="border-l-4 border-blue-500 pl-4">
-                  <h3 className="font-medium text-gray-900">Cost Optimization Opportunities</h3>
-                  <p className="text-gray-600">Identified $2,100 in potential monthly savings through service optimization.</p>
-                </div>
-                <div className="border-l-4 border-purple-500 pl-4">
-                  <h3 className="font-medium text-gray-900">Security Posture</h3>
-                  <p className="text-gray-600">Overall security score improved to 87/100 with enhanced compliance coverage.</p>
-                </div>
+        {/* Metrics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Security ROI</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {metrics?.securityROI?.value || 'Loading...'}
+                </p>
+                <p className={`text-sm ${metrics?.securityROI?.trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
+                  {metrics?.securityROI?.change || ''}
+                </p>
+              </div>
+              <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
               </div>
             </div>
           </div>
 
-          {/* Chat Interface */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow h-96 flex flex-col">
-              <div className="flex items-center justify-between p-4 border-b">
-                <h3 className="text-lg font-semibold text-gray-900">AI Assistant</h3>
-                <MessageCircle className="w-5 h-5 text-gray-500" />
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Monthly Security Spend</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {metrics?.monthlySpend?.value || 'Loading...'}
+                </p>
+                <p className={`text-sm ${metrics?.monthlySpend?.trend === 'down' ? 'text-green-600' : 'text-red-600'}`}>
+                  {metrics?.monthlySpend?.change || ''}
+                </p>
               </div>
-              
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {chatMessages.map((message) => (
-                  <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-xs px-3 py-2 rounded-lg ${
-                      message.sender === 'user' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-gray-100 text-gray-900'
-                    }`}>
-                      <p className="text-sm">{message.text}</p>
-                    </div>
-                  </div>
-                ))}
-                {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="bg-gray-100 text-gray-900 max-w-xs px-3 py-2 rounded-lg">
-                      <p className="text-sm">Analyzing...</p>
-                    </div>
-                  </div>
-                )}
+              <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                </svg>
               </div>
-              
-              <div className="p-4 border-t">
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    value={inputMessage}
-                    onChange={(e) => setInputMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                    placeholder="Ask about security ROI..."
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button
-                    onClick={handleSendMessage}
-                    disabled={isLoading}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    Send
-                  </button>
-                </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Security Score</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {metrics?.securityScore?.value || 'Loading...'}
+                </p>
+                <p className={`text-sm ${metrics?.securityScore?.trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
+                  {metrics?.securityScore?.change || ''}
+                </p>
+              </div>
+              <div className="h-12 w-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                <svg className="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.031 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
               </div>
             </div>
           </div>
         </div>
+
+        {/* AI Assistant Chat */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-medium text-gray-900">AI Security Assistant</h2>
+            <p className="text-sm text-gray-600">Ask questions about your security investments and ROI</p>
+          </div>
+          
+          <div className="p-6">
+            <div className="h-96 overflow-y-auto mb-4 border border-gray-200 rounded-lg p-4 bg-gray-50">
+              {chatHistory.length === 0 ? (
+                <div className="text-center text-gray-500 mt-8">
+                  <p>Welcome! I'm your AI Security Assistant.</p>
+                  <p className="mt-2">Ask me about your security ROI, costs, or recommendations.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {chatHistory.map((msg, index) => (
+                    <div key={index} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                        msg.type === 'user' 
+                          ? 'bg-blue-600 text-white' 
+                          : 'bg-white text-gray-900 border border-gray-200'
+                      }`}>
+                        <p className="text-sm">{msg.message}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {chatLoading && (
+                    <div className="flex justify-start">
+                      <div className="bg-white text-gray-900 border border-gray-200 max-w-xs lg:max-w-md px-4 py-2 rounded-lg">
+                        <div className="flex items-center space-x-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                          <span className="text-sm">Thinking...</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+            
+            <form onSubmit={handleChatSubmit} className="flex space-x-4">
+              <input
+                type="text"
+                value={chatMessage}
+                onChange={(e) => setChatMessage(e.target.value)}
+                placeholder="Ask about security ROI, costs, or recommendations..."
+                className="flex-1 border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={chatLoading}
+              />
+              <button
+                type="submit"
+                disabled={chatLoading || !chatMessage.trim()}
+                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-6 py-2 rounded-md font-medium"
+              >
+                Send
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-8 text-center text-sm text-gray-500">
+          <p>Last updated: {metrics?.lastUpdated || 'Loading...'}</p>
+        </div>
       </div>
     </div>
   );
-}
+};
+
+// Main App Component
+const AppContent: React.FC = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return user ? <Dashboard /> : <LoginForm />;
+};
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
+};
 
 export default App;
