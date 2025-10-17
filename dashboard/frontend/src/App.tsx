@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Shield, DollarSign, TrendingUp, MessageCircle } from 'lucide-react';
+import { apiService, MetricsResponse } from './services/apiService';
 import './App.css';
 
 interface MetricCard {
@@ -28,30 +29,71 @@ function App() {
   ]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [metrics, setMetrics] = useState<MetricsResponse | null>(null);
 
-  const metrics: MetricCard[] = [
-    {
-      title: 'Security ROI',
-      value: '24.5%',
-      change: '+3.2%',
-      icon: <TrendingUp className="w-6 h-6" />,
-      color: 'text-green-600'
-    },
-    {
-      title: 'Monthly Security Spend',
-      value: '$12,450',
-      change: '+5.1%',
-      icon: <DollarSign className="w-6 h-6" />,
-      color: 'text-blue-600'
-    },
-    {
-      title: 'Security Score',
-      value: '87/100',
-      change: '+2 pts',
-      icon: <Shield className="w-6 h-6" />,
-      color: 'text-purple-600'
+  // Load metrics on component mount
+  useEffect(() => {
+    loadMetrics();
+  }, []);
+
+  const loadMetrics = async () => {
+    const metricsData = await apiService.getMetrics();
+    if (metricsData) {
+      setMetrics(metricsData);
     }
-  ];
+  };
+
+  const getMetricCards = (): MetricCard[] => {
+    if (!metrics) {
+      return [
+        {
+          title: 'Security ROI',
+          value: 'Loading...',
+          change: '',
+          icon: <TrendingUp className="w-6 h-6" />,
+          color: 'text-green-600'
+        },
+        {
+          title: 'Monthly Security Spend',
+          value: 'Loading...',
+          change: '',
+          icon: <DollarSign className="w-6 h-6" />,
+          color: 'text-blue-600'
+        },
+        {
+          title: 'Security Score',
+          value: 'Loading...',
+          change: '',
+          icon: <Shield className="w-6 h-6" />,
+          color: 'text-purple-600'
+        }
+      ];
+    }
+
+    return [
+      {
+        title: 'Security ROI',
+        value: metrics.securityROI.value,
+        change: metrics.securityROI.change,
+        icon: <TrendingUp className="w-6 h-6" />,
+        color: 'text-green-600'
+      },
+      {
+        title: 'Monthly Security Spend',
+        value: metrics.monthlySpend.value,
+        change: metrics.monthlySpend.change,
+        icon: <DollarSign className="w-6 h-6" />,
+        color: 'text-blue-600'
+      },
+      {
+        title: 'Security Score',
+        value: metrics.securityScore.value,
+        change: metrics.securityScore.change,
+        icon: <Shield className="w-6 h-6" />,
+        color: 'text-purple-600'
+      }
+    ];
+  };
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim()) return;
@@ -67,18 +109,31 @@ function App() {
     setInputMessage('');
     setIsLoading(true);
 
-    // Simulate agent response
-    setTimeout(() => {
+    try {
+      const response = await apiService.sendChatMessage(inputMessage);
+      
       const agentMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        text: `I understand you're asking about "${inputMessage}". Let me analyze your security data and provide insights.`,
+        text: response,
         sender: 'agent',
         timestamp: new Date()
       };
+      
       setChatMessages(prev => [...prev, agentMessage]);
+    } catch (error) {
+      const errorMessage: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        text: 'Sorry, I encountered an error processing your request. Please try again.',
+        sender: 'agent',
+        timestamp: new Date()
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
+
+  const metricCards = getMetricCards();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -88,7 +143,9 @@ function App() {
           <div className="flex justify-between items-center py-4">
             <h1 className="text-2xl font-bold text-gray-900">Executive Security ROI Dashboard</h1>
             <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-500">Last updated: {new Date().toLocaleTimeString()}</span>
+              <span className="text-sm text-gray-500">
+                Last updated: {metrics?.lastUpdated ? new Date(metrics.lastUpdated).toLocaleTimeString() : 'Loading...'}
+              </span>
             </div>
           </div>
         </div>
@@ -100,13 +157,15 @@ function App() {
           {/* Metrics Cards */}
           <div className="lg:col-span-2">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              {metrics.map((metric, index) => (
+              {metricCards.map((metric, index) => (
                 <div key={index} className="bg-white rounded-lg shadow p-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-gray-600">{metric.title}</p>
                       <p className="text-2xl font-bold text-gray-900">{metric.value}</p>
-                      <p className={`text-sm ${metric.color}`}>{metric.change} from last month</p>
+                      {metric.change && (
+                        <p className={`text-sm ${metric.color}`}>{metric.change} from last month</p>
+                      )}
                     </div>
                     <div className={metric.color}>
                       {metric.icon}
