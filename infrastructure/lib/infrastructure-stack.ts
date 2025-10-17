@@ -2,6 +2,7 @@ import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { AgentCoreStack } from './agentcore-stack';
 import { MCPDeploymentStack } from './mcp-deployment-stack';
+import { AgentCoreGatewayStack } from './agentcore-gateway-stack';
 
 export class InfrastructureStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -19,7 +20,17 @@ export class InfrastructureStack extends cdk.Stack {
       logGroup: agentCoreStack.logGroup,
     });
 
-    // Add dependency
+    // AgentCore Gateway Stack
+    const gatewayStack = new AgentCoreGatewayStack(this, 'AgentCoreGateway', {
+      description: 'API Gateway for AgentCore MCP tool routing',
+      securityMCPFunction: mcpDeploymentStack.securityMCPFunction,
+      costMCPFunction: mcpDeploymentStack.costMCPFunction,
+      roiAnalyticsMCPFunction: mcpDeploymentStack.roiAnalyticsMCPFunction,
+      agentCoreRole: agentCoreStack.agentCoreRole,
+    });
+
+    // Add dependencies
     mcpDeploymentStack.addDependency(agentCoreStack);
+    gatewayStack.addDependency(mcpDeploymentStack);
   }
 }
