@@ -103,9 +103,6 @@ const Dashboard: React.FC = () => {
                 <p className="text-2xl font-bold text-gray-900">
                   {metrics?.securityROI?.value || 'Loading...'}
                 </p>
-                <p className={`text-sm ${metrics?.securityROI?.trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
-                  {metrics?.securityROI?.change || ''}
-                </p>
               </div>
               <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
                 <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -122,9 +119,6 @@ const Dashboard: React.FC = () => {
                 <p className="text-2xl font-bold text-gray-900">
                   {metrics?.monthlySpend?.value || 'Loading...'}
                 </p>
-                <p className={`text-sm ${metrics?.monthlySpend?.trend === 'down' ? 'text-green-600' : 'text-red-600'}`}>
-                  {metrics?.monthlySpend?.change || ''}
-                </p>
               </div>
               <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
                 <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -140,9 +134,6 @@ const Dashboard: React.FC = () => {
                 <p className="text-sm font-medium text-gray-600">Security Score</p>
                 <p className="text-2xl font-bold text-gray-900">
                   {metrics?.securityScore?.value || 'Loading...'}
-                </p>
-                <p className={`text-sm ${metrics?.securityScore?.trend === 'up' ? 'text-green-600' : 'text-red-600'}`}>
-                  {metrics?.securityScore?.change || ''}
                 </p>
               </div>
               <div className="h-12 w-12 bg-yellow-100 rounded-lg flex items-center justify-center">
