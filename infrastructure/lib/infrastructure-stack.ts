@@ -4,6 +4,7 @@ import { AgentCoreStack } from './agentcore-stack';
 import { MCPDeploymentStack } from './mcp-deployment-stack';
 import { AgentCoreGatewayStack } from './agentcore-gateway-stack';
 import { BedrockAgentStack } from './bedrock-agent-stack';
+import { DashboardBackendStack } from './dashboard-backend-stack';
 
 export class InfrastructureStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -37,9 +38,16 @@ export class InfrastructureStack extends cdk.Stack {
       gateway: gatewayStack.gateway,
     });
 
+    // Dashboard Backend Stack
+    const dashboardBackendStack = new DashboardBackendStack(this, 'DashboardBackend', {
+      description: 'Backend API for Executive Dashboard',
+      agentCoreRole: agentCoreStack.agentCoreRole,
+    });
+
     // Add dependencies
     mcpDeploymentStack.addDependency(agentCoreStack);
     gatewayStack.addDependency(mcpDeploymentStack);
     bedrockAgentStack.addDependency(gatewayStack);
+    dashboardBackendStack.addDependency(bedrockAgentStack);
   }
 }
