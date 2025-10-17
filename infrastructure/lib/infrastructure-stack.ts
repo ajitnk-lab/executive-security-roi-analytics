@@ -3,6 +3,7 @@ import { Construct } from 'constructs';
 import { AgentCoreStack } from './agentcore-stack';
 import { MCPDeploymentStack } from './mcp-deployment-stack';
 import { AgentCoreGatewayStack } from './agentcore-gateway-stack';
+import { BedrockAgentStack } from './bedrock-agent-stack';
 
 export class InfrastructureStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -29,8 +30,16 @@ export class InfrastructureStack extends cdk.Stack {
       agentCoreRole: agentCoreStack.agentCoreRole,
     });
 
+    // Bedrock Agent Stack
+    const bedrockAgentStack = new BedrockAgentStack(this, 'BedrockAgent', {
+      description: 'Bedrock Agent orchestrator for Security ROI Analytics',
+      agentCoreRole: agentCoreStack.agentCoreRole,
+      gateway: gatewayStack.gateway,
+    });
+
     // Add dependencies
     mcpDeploymentStack.addDependency(agentCoreStack);
     gatewayStack.addDependency(mcpDeploymentStack);
+    bedrockAgentStack.addDependency(gatewayStack);
   }
 }
