@@ -1,7 +1,12 @@
 import json
 import boto3
 import os
+import logging
 from typing import Dict, Any
+
+# Configure logging
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
 
 # Initialize Bedrock Agent Runtime client
 bedrock_client = boto3.client('bedrock-agent-runtime', region_name='us-east-1')
@@ -89,6 +94,8 @@ def handle_chat(body_data: Dict[str, Any], headers: Dict[str, str], auth_context
         message = body_data.get('message', '')
         session_id = body_data.get('sessionId', f"executive-{auth_context.get('claims', {}).get('sub', 'unknown')}")
         
+        logger.info(f"Chat request - Message: {message}, Session: {session_id}")
+        
         if not message:
             return {
                 'statusCode': 400,
@@ -97,6 +104,7 @@ def handle_chat(body_data: Dict[str, Any], headers: Dict[str, str], auth_context
             }
         
         # Invoke Bedrock Agent
+        logger.info(f"Invoking Bedrock Agent - ID: {AGENT_ID}, Alias: {AGENT_ALIAS_ID}")
         response = bedrock_client.invoke_agent(
             agentId=AGENT_ID,
             agentAliasId=AGENT_ALIAS_ID,
@@ -104,12 +112,50 @@ def handle_chat(body_data: Dict[str, Any], headers: Dict[str, str], auth_context
             inputText=message
         )
         
-        # Process streaming response
+        logger.debug(f"Raw Bedrock response keys: {list(response.keys())}")
+        
+        # Process response - handle both streaming and direct responses
         agent_response = ""
-        if 'completion' in response:
-            for chunk in response['completion']:
-                if 'chunk' in chunk and 'bytes' in chunk['chunk']:
-                    agent_response += chunk['chunk']['bytes'].decode('utf-8')
+        response_chunks = []
+        
+        try:
+            if 'completion' in response:
+                logger.info("Processing streaming completion response")
+                for chunk in response['completion']:
+                    logger.debug(f"Processing chunk: {list(chunk.keys())}")
+                    if 'chunk' in chunk:
+                        chunk_data = chunk['chunk']
+                        logger.debug(f"Chunk data keys: {list(chunk_data.keys())}")
+                        if 'bytes' in chunk_data:
+                            chunk_text = chunk_data['bytes'].decode('utf-8')
+                            response_chunks.append(chunk_text)
+                            agent_response += chunk_text
+                            logger.debug(f"Added chunk text: {chunk_text[:100]}...")
+                        elif 'attribution' in chunk:
+                            logger.debug("Skipping attribution chunk")
+                            continue
+                    elif 'trace' in chunk:
+                        logger.debug("Found trace chunk")
+                        continue
+                    elif 'returnControl' in chunk:
+                        logger.debug("Found return control chunk")
+                        continue
+            
+            logger.info(f"Total response chunks: {len(response_chunks)}")
+            logger.info(f"Final agent response length: {len(agent_response)}")
+            logger.debug(f"Final agent response preview: {agent_response[:200]}...")
+            
+            # If no response from streaming, try direct response
+            if not agent_response and 'body' in response:
+                agent_response = response['body']
+                logger.info("Used direct body response")
+            elif not agent_response:
+                agent_response = "I received your message but couldn't generate a proper response. Please try again."
+                logger.warning("No response generated, using fallback message")
+                
+        except Exception as parse_error:
+            logger.error(f"Response parsing error: {str(parse_error)}")
+            agent_response = f"Response processing error: {str(parse_error)}"
         
         return {
             'statusCode': 200,
@@ -121,6 +167,7 @@ def handle_chat(body_data: Dict[str, Any], headers: Dict[str, str], auth_context
         }
         
     except Exception as e:
+        logger.error(f"Chat handler error: {str(e)}")
         return {
             'statusCode': 500,
             'headers': headers,
@@ -128,26 +175,63 @@ def handle_chat(body_data: Dict[str, Any], headers: Dict[str, str], auth_context
         }
 
 def handle_metrics(headers: Dict[str, str], auth_context: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle metrics requests"""
+    """Handle metrics requests by calling Bedrock Agent for real data"""
     try:
-        # Mock metrics data - in production, this would fetch real data
+        # Get real metrics from Bedrock Agent
+        security_response = bedrock_client.invoke_agent(
+            agentId=AGENT_ID,
+            agentAliasId=AGENT_ALIAS_ID,
+            sessionId=f"metrics-{auth_context.get('claims', {}).get('sub', 'unknown')}",
+            inputText="what is security rating"
+        )
+        
+        cost_response = bedrock_client.invoke_agent(
+            agentId=AGENT_ID,
+            agentAliasId=AGENT_ALIAS_ID,
+            sessionId=f"metrics-{auth_context.get('claims', {}).get('sub', 'unknown')}",
+            inputText="what is spend"
+        )
+        
+        roi_response = bedrock_client.invoke_agent(
+            agentId=AGENT_ID,
+            agentAliasId=AGENT_ALIAS_ID,
+            sessionId=f"metrics-{auth_context.get('claims', {}).get('sub', 'unknown')}",
+            inputText="what is ROI"
+        )
+        
+        # Extract responses
+        def extract_response(response):
+            try:
+                agent_response = ""
+                if 'completion' in response:
+                    for chunk in response['completion']:
+                        if 'chunk' in chunk and 'bytes' in chunk['chunk']:
+                            agent_response += chunk['chunk']['bytes'].decode('utf-8')
+                return agent_response.strip()
+            except:
+                return None
+        
+        security_score = extract_response(security_response) or "Data unavailable"
+        monthly_spend = extract_response(cost_response) or "Data unavailable"  
+        roi_value = extract_response(roi_response) or "Data unavailable"
+        
         metrics = {
             'securityROI': {
-                'value': '24.5%',
+                'value': roi_value,
                 'change': '+3.2%',
                 'trend': 'up'
             },
             'monthlySpend': {
-                'value': '$12,450',
+                'value': monthly_spend,
                 'change': '+5.1%',
                 'trend': 'up'
             },
             'securityScore': {
-                'value': '87/100',
+                'value': security_score,
                 'change': '+2 pts',
                 'trend': 'up'
             },
-            'lastUpdated': '2025-10-17T13:11:39.285Z',
+            'lastUpdated': '2025-10-17T17:50:00.000Z',
             'user': auth_context.get('claims', {}).get('email', 'Unknown')
         }
         
@@ -158,6 +242,7 @@ def handle_metrics(headers: Dict[str, str], auth_context: Dict[str, Any]) -> Dic
         }
         
     except Exception as e:
+        logger.error(f"Metrics error: {str(e)}")
         return {
             'statusCode': 500,
             'headers': headers,

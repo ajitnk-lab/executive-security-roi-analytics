@@ -34,17 +34,17 @@ class SecurityROIOrchestrator:
         # Tool routing configuration
         self.tool_routing = {
             'security': {
-                'keywords': ['security', 'compliance', 'findings', 'vulnerabilities', 'guardduty', 'inspector', 'config'],
+                'keywords': ['security', 'compliance', 'findings', 'vulnerabilities', 'guardduty', 'inspector', 'config', 'threat', 'risk', 'breach', 'attack', 'malware', 'incident'],
                 'endpoint': '/security',
                 'tools': ['check_security_services', 'get_security_findings', 'check_compliance']
             },
             'cost': {
-                'keywords': ['cost', 'spend', 'budget', 'expense', 'billing', 'price', 'forecast'],
+                'keywords': ['cost', 'spend', 'budget', 'expense', 'billing', 'price', 'forecast', 'money', 'dollar', 'fee', 'charge', 'payment', 'financial', 'costs'],
                 'endpoint': '/cost', 
                 'tools': ['get_security_service_costs', 'analyze_cost_trends', 'get_cost_breakdown', 'forecast_costs']
             },
             'roi': {
-                'keywords': ['roi', 'return', 'investment', 'benefit', 'value', 'optimization', 'efficiency'],
+                'keywords': ['roi', 'return', 'investment', 'benefit', 'value', 'optimization', 'efficiency', 'worth', 'payback', 'profit', 'savings', 'business case'],
                 'endpoint': '/roi',
                 'tools': ['calculate_security_roi', 'analyze_cost_benefit', 'generate_roi_report', 'optimize_security_spend']
             }
@@ -53,19 +53,40 @@ class SecurityROIOrchestrator:
     def analyze_query_intent(self, query: str) -> Dict[str, Any]:
         """Analyze query to determine intent and appropriate MCP server."""
         query_lower = query.lower()
+        logger.debug(f"Analyzing query intent for: '{query_lower}'")
         
         # Score each category based on keyword matches
         scores = {}
         for category, config in self.tool_routing.items():
             score = sum(1 for keyword in config['keywords'] if keyword in query_lower)
-            if score > 0:
-                scores[category] = score
+            scores[category] = score
+            logger.debug(f"Category '{category}' scored {score} points")
         
-        # Determine primary intent
-        if not scores:
-            primary_intent = 'security'  # Default fallback
+        # Determine primary intent with better logic
+        if not any(scores.values()):
+            # No keywords matched - analyze query context
+            if any(word in query_lower for word in ['how much', 'what does it cost', 'spending', 'money', 'dollars', '$']):
+                primary_intent = 'cost'
+                logger.debug("No keyword matches, but detected cost context")
+            elif any(word in query_lower for word in ['worth it', 'return on', 'benefit', 'value', 'investment']):
+                primary_intent = 'roi'
+                logger.debug("No keyword matches, but detected ROI context")
+            else:
+                primary_intent = 'security'  # Default fallback
+                logger.debug("No keyword matches, defaulting to security")
         else:
-            primary_intent = max(scores, key=scores.get)
+            # Get highest scoring category
+            max_score = max(scores.values())
+            # If there's a tie, prioritize cost/roi over security for business queries
+            if scores.get('cost', 0) == max_score and max_score > 0:
+                primary_intent = 'cost'
+            elif scores.get('roi', 0) == max_score and max_score > 0:
+                primary_intent = 'roi'
+            else:
+                primary_intent = max(scores, key=scores.get)
+            logger.debug(f"Highest scoring category: '{primary_intent}' with {max_score} points")
+        
+        logger.info(f"Query intent analysis: '{primary_intent}' for query: '{query}'")
         
         return {
             'primary_intent': primary_intent,
@@ -273,7 +294,11 @@ class SecurityROIOrchestrator:
 def lambda_handler(event, context):
     """AWS Lambda handler for Bedrock Agent integration."""
     try:
-        logger.info(f"Received event: {json.dumps(event)}")
+        # Set logging level to DEBUG for detailed output
+        logger.setLevel(logging.DEBUG)
+        logger.debug(f"=== ORCHESTRATOR INVOKED ===")
+        logger.debug(f"Full event received: {json.dumps(event, indent=2)}")
+        logger.debug(f"Context: {context}")
         
         # Handle different event formats from Bedrock Agent
         query = ""
@@ -283,9 +308,11 @@ def lambda_handler(event, context):
         if 'inputText' in event:
             query = event.get('inputText', '')
             session_attributes = event.get('sessionAttributes', {})
+            logger.debug(f"Direct Bedrock Agent format detected - Query: {query}")
         # Check if this is an action group invocation
         elif 'requestBody' in event:
             request_body = event.get('requestBody', {})
+            logger.debug(f"Action group format detected - RequestBody: {request_body}")
             if 'content' in request_body:
                 content = request_body['content']
                 if 'application/json' in content:
@@ -296,13 +323,17 @@ def lambda_handler(event, context):
         elif 'query' in event:
             query = event.get('query', '')
             session_attributes = event.get('context', {})
+            logger.debug(f"Simple query format detected - Query: {query}")
         else:
             # Fallback - try to extract from event body
+            logger.debug(f"Unknown event format, using fallback")
             query = str(event)
             
-        logger.info(f"Extracted query: {query}")
+        logger.info(f"Extracted query: '{query}'")
+        logger.debug(f"Session attributes: {session_attributes}")
         
         if not query:
+            logger.error(f"No query found in event")
             return {
                 'statusCode': 400,
                 'body': json.dumps({
@@ -313,58 +344,140 @@ def lambda_handler(event, context):
         
         # Initialize orchestrator
         gateway_url = os.environ.get('GATEWAY_URL', "https://yko4kspo9e.execute-api.us-east-1.amazonaws.com/prod")
+        logger.debug(f"Using gateway URL: {gateway_url}")
         orchestrator = SecurityROIOrchestrator(gateway_url)
         
         # Process query
+        logger.debug(f"Processing query with orchestrator...")
         response = orchestrator.process_executive_query(query, session_attributes)
+        logger.debug(f"Orchestrator response: {json.dumps(response, indent=2)}")
         
         # Format response for Bedrock Agent
         if 'error' in response:
             # Return a user-friendly error message
             response_text = f"I encountered an issue while processing your request: {response.get('summary', 'Please try rephrasing your question.')}"
+            logger.error(f"Error in orchestrator response: {response}")
         else:
+            # Check if user wants just a number/rating
+            query_lower = query.lower()
+            wants_number_only = any(phrase in query_lower for phrase in [
+                'what is', 'what\'s', 'show me', 'give me', 'tell me'
+            ]) and any(phrase in query_lower for phrase in [
+                'rating', 'score', 'spend', 'cost', 'number', 'amount', 'total'
+            ])
+            
             # Format the response based on intent
             intent = response.get('intent', 'general')
             results = response.get('results', {})
+            logger.debug(f"Response intent: {intent}, Results keys: {list(results.keys())}, Number only: {wants_number_only}")
             
-            if intent == 'cost':
-                response_text = f"Here's your security cost analysis:\n\n{response.get('summary', 'Cost analysis completed.')}"
-                if 'cost_breakdown' in results:
+            if wants_number_only:
+                # Extract just the key number/value from MCP server responses ONLY
+                if intent == 'cost' and 'cost_breakdown' in results:
                     cost_data = results['cost_breakdown']
                     if isinstance(cost_data, dict) and 'result' in cost_data:
-                        response_text += f"\n\nDetails: {cost_data['result']}"
-            elif intent == 'security':
-                response_text = f"Here's your security status:\n\n{response.get('summary', 'Security analysis completed.')}"
-                if 'security_status' in results:
-                    security_data = results['security_status']
-                    if isinstance(security_data, dict) and 'result' in security_data:
-                        response_text += f"\n\nDetails: {security_data['result']}"
-            elif intent == 'roi':
-                response_text = f"Here's your ROI analysis:\n\n{response.get('summary', 'ROI analysis completed.')}"
-                if 'roi_calculation' in results:
-                    roi_data = results['roi_calculation']
-                    if isinstance(roi_data, dict) and 'result' in roi_data:
-                        response_text += f"\n\nDetails: {roi_data['result']}"
+                        try:
+                            cost_json = json.loads(cost_data['result'])
+                            total_cost = cost_json.get('total_cost', 0)
+                            if total_cost == 0:
+                                response_text = "$0"
+                            else:
+                                response_text = f"${abs(total_cost):.2f}"
+                        except Exception as e:
+                            logger.error(f"Failed to parse cost data: {e}")
+                            response_text = "Cost data unavailable"
+                elif intent == 'security' and 'security_status' in results:
+                    # Calculate security score based on actual MCP server data
+                    try:
+                        security_data = results['security_status']
+                        if isinstance(security_data, dict) and 'result' in security_data:
+                            security_json = json.loads(security_data['result'])
+                            enabled_count = 0
+                            total_services = 0
+                            for region_data in security_json.values():
+                                if isinstance(region_data, dict):
+                                    for service, config in region_data.items():
+                                        if isinstance(config, dict) and 'status' in config:
+                                            total_services += 1
+                                            if config['status'] == 'enabled':
+                                                enabled_count += 1
+                            if total_services > 0:
+                                score = int((enabled_count / total_services) * 100)
+                                response_text = f"{score}/100"
+                            else:
+                                response_text = "Security data unavailable"
+                    except Exception as e:
+                        logger.error(f"Failed to parse security data: {e}")
+                        response_text = "Security data unavailable"
+                elif intent == 'roi' and 'roi_calculation' in results:
+                    # Extract ROI from actual MCP server response
+                    try:
+                        roi_data = results['roi_calculation']
+                        if isinstance(roi_data, dict) and 'result' in roi_data:
+                            roi_json = json.loads(roi_data['result'])
+                            roi_percentage = roi_json.get('roi_percentage', roi_json.get('total_roi', 0))
+                            response_text = f"{roi_percentage}%"
+                        else:
+                            response_text = "ROI data unavailable"
+                    except Exception as e:
+                        logger.error(f"Failed to parse ROI data: {e}")
+                        response_text = "ROI data unavailable"
+                else:
+                    response_text = "Data not available - please try a more specific query"
             else:
-                response_text = f"Analysis complete: {response.get('summary', 'I have processed your request.')}"
+                # Full response format
+                if intent == 'cost':
+                    response_text = f"Here's your security cost analysis:\n\n{response.get('summary', 'Cost analysis completed.')}"
+                    if 'cost_breakdown' in results:
+                        cost_data = results['cost_breakdown']
+                        if isinstance(cost_data, dict) and 'result' in cost_data:
+                            response_text += f"\n\nDetails: {cost_data['result']}"
+                elif intent == 'security':
+                    response_text = f"Here's your security status:\n\n{response.get('summary', 'Security analysis completed.')}"
+                    if 'security_status' in results:
+                        security_data = results['security_status']
+                        if isinstance(security_data, dict) and 'result' in security_data:
+                            response_text += f"\n\nDetails: {security_data['result']}"
+                elif intent == 'roi':
+                    response_text = f"Here's your ROI analysis:\n\n{response.get('summary', 'ROI analysis completed.')}"
+                    if 'roi_calculation' in results:
+                        roi_data = results['roi_calculation']
+                        if isinstance(roi_data, dict) and 'result' in roi_data:
+                            response_text += f"\n\nDetails: {roi_data['result']}"
+                else:
+                    response_text = f"Analysis complete: {response.get('summary', 'I have processed your request.')}"
         
-        # Return in Bedrock Agent format
+        logger.debug(f"Final response text: {response_text}")
+        
+        # Return proper Bedrock Agent action group response format
         return {
-            'statusCode': 200,
-            'body': json.dumps({
-                'application/json': {
-                    'body': response_text
+            'messageVersion': '1.0',
+            'response': {
+                'actionGroup': event.get('actionGroup', 'security-analytics'),
+                'apiPath': event.get('apiPath', '/analyze'),
+                'httpMethod': event.get('httpMethod', 'POST'),
+                'httpStatusCode': 200,
+                'responseBody': {
+                    'application/json': {
+                        'body': response_text
+                    }
                 }
-            })
+            }
         }
         
     except Exception as e:
-        logger.error(f"Lambda handler error: {str(e)}")
+        logger.error(f"Lambda handler error: {str(e)}", exc_info=True)
         return {
-            'statusCode': 500,
-            'body': json.dumps({
-                'application/json': {
-                    'body': f"I'm sorry, I encountered an error processing your request. Please try again or rephrase your question."
+            'messageVersion': '1.0',
+            'response': {
+                'actionGroup': event.get('actionGroup', 'security-analytics'),
+                'apiPath': event.get('apiPath', '/analyze'),
+                'httpMethod': event.get('httpMethod', 'POST'),
+                'httpStatusCode': 500,
+                'responseBody': {
+                    'application/json': {
+                        'body': f"I'm sorry, I encountered an error processing your request. Please try again or rephrase your question."
+                    }
                 }
-            })
+            }
         }

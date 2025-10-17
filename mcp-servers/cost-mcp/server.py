@@ -315,14 +315,43 @@ class CostMCPServer:
 
     async def _get_cost_breakdown(self, args: Dict[str, Any]) -> List[TextContent]:
         """Get detailed cost breakdown by usage type and region"""
-        service = args["service"]
+        service = args.get("service")  # Make service optional
         end_date = args.get("end_date", datetime.now().strftime("%Y-%m-%d"))
         start_date = args.get("start_date", (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d"))
+        
+        # Default security services if no specific service provided
+        security_services = [
+            'Amazon GuardDuty',
+            'AWS Security Hub',
+            'Amazon Inspector',
+            'AWS Config',
+            'AWS WAF',
+            'AWS Shield'
+        ]
         
         try:
             ce_client = boto3.client('ce')
             
-            # Get cost breakdown by usage type
+            # Build filter based on whether specific service is requested
+            if service:
+                cost_filter = {
+                    'Dimensions': {
+                        'Key': 'SERVICE',
+                        'Values': [service],
+                        'MatchOptions': ['EQUALS']
+                    }
+                }
+            else:
+                # Get costs for all security services
+                cost_filter = {
+                    'Dimensions': {
+                        'Key': 'SERVICE',
+                        'Values': security_services,
+                        'MatchOptions': ['EQUALS']
+                    }
+                }
+            
+            # Get cost breakdown by service and usage type
             usage_response = ce_client.get_cost_and_usage(
                 TimePeriod={
                     'Start': start_date,
@@ -330,14 +359,11 @@ class CostMCPServer:
                 },
                 Granularity='MONTHLY',
                 Metrics=['BlendedCost', 'UsageQuantity'],
-                GroupBy=[{'Type': 'DIMENSION', 'Key': 'USAGE_TYPE'}],
-                Filter={
-                    'Dimensions': {
-                        'Key': 'SERVICE',
-                        'Values': [service],
-                        'MatchOptions': ['EQUALS']
-                    }
-                }
+                GroupBy=[
+                    {'Type': 'DIMENSION', 'Key': 'SERVICE'},
+                    {'Type': 'DIMENSION', 'Key': 'USAGE_TYPE'}
+                ],
+                Filter=cost_filter
             )
             
             # Get cost breakdown by region
@@ -349,17 +375,11 @@ class CostMCPServer:
                 Granularity='MONTHLY',
                 Metrics=['BlendedCost'],
                 GroupBy=[{'Type': 'DIMENSION', 'Key': 'REGION'}],
-                Filter={
-                    'Dimensions': {
-                        'Key': 'SERVICE',
-                        'Values': [service],
-                        'MatchOptions': ['EQUALS']
-                    }
-                }
+                Filter=cost_filter
             )
             
             breakdown = {
-                "service": service,
+                "service": service if service else "All Security Services",
                 "time_period": {"start": start_date, "end": end_date},
                 "usage_types": {},
                 "regions": {},

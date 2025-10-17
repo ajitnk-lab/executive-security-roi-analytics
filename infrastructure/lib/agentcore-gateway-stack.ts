@@ -34,17 +34,17 @@ export class AgentCoreGatewayStack extends cdk.Stack {
       },
     });
 
-    // Create Lambda integrations
+    // Create Lambda integrations with proper request body mapping
     const securityIntegration = new apigateway.LambdaIntegration(props.securityMCPFunction, {
-      requestTemplates: { 'application/json': '{ "statusCode": "200" }' },
+      proxy: true,
     });
 
     const costIntegration = new apigateway.LambdaIntegration(props.costMCPFunction, {
-      requestTemplates: { 'application/json': '{ "statusCode": "200" }' },
+      proxy: true,
     });
 
     const roiIntegration = new apigateway.LambdaIntegration(props.roiAnalyticsMCPFunction, {
-      requestTemplates: { 'application/json': '{ "statusCode": "200" }' },
+      proxy: true,
     });
 
     // Create API Gateway resources and methods

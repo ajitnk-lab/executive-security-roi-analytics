@@ -70,6 +70,11 @@ Security MCP    Cost MCP    ROI MCP
 - **Timeline**: ~60% through infrastructure phase, moving to agent orchestration
 
 proceeed in a clear logical modular fashion , often commiting abnd updating all todo and and task.md files
+
+do not perform any short cut, work around. fix all issues professionaly , diligently
+
+ dont do
+  any deviation from original planned archietcture and flow just to fix the issues
 ---
 *Created: 2025-10-17T11:09:33*
 *TODO List ID: 1760699676280*

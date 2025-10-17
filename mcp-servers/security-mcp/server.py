@@ -160,10 +160,17 @@ class SecurityMCPServer:
             client = boto3.client('securityhub', region_name=region)
             hub = client.describe_hub()
             
+            # Handle both datetime objects and string dates
+            subscribed_at = hub['SubscribedAt']
+            if hasattr(subscribed_at, 'isoformat'):
+                subscribed_at = subscribed_at.isoformat()
+            else:
+                subscribed_at = str(subscribed_at)
+            
             return {
                 "status": "enabled",
                 "hub_arn": hub['HubArn'],
-                "subscribed_at": hub['SubscribedAt'].isoformat(),
+                "subscribed_at": subscribed_at,
                 "auto_enable_controls": hub.get('AutoEnableControls', False)
             }
         except ClientError as e:
