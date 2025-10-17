@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+*.pyc
+__pycache__/
+.venv/
+venv/
+env/
+
+# Build outputs
+dist/
+build/
+*.egg-info/
+.cdk.staging/
+cdk.out/
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.staging
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# AWS
+.aws/
+*.pem
+
+# AgentCore
+.bedrock_agentcore.yaml
+agentcore_*.py
+
+# Testing
+.coverage
+.pytest_cache/
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
