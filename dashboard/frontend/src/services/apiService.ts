@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://0v0eeglzg4.execute-api.us-east-1.amazonaws.com/prod';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://0v0eeglzg4.execute-api.us-east-1.amazonaws.com/prod';
 
 export interface ChatMessage {
   message: string;
@@ -27,16 +27,23 @@ export interface MetricsResponse {
     trend: string;
   };
   lastUpdated: string;
+  user?: string;
 }
 
 class ApiService {
-  async sendChatMessage(message: string, sessionId: string = 'executive-session'): Promise<string> {
+  async sendChatMessage(message: string, sessionId: string = 'executive-session', token?: string): Promise<string> {
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${API_BASE_URL}/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           message,
           sessionId
@@ -55,13 +62,19 @@ class ApiService {
     }
   }
 
-  async getMetrics(): Promise<MetricsResponse | null> {
+  async getMetrics(token?: string): Promise<MetricsResponse | null> {
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${API_BASE_URL}/metrics`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
+        headers
       });
 
       if (!response.ok) {
