@@ -119,6 +119,18 @@ export class AgentCoreStack extends cdk.Stack {
       resources: [this.logGroup.logGroupArn, `${this.logGroup.logGroupArn}:*`],
     }));
 
+    // Add permissions for Bedrock Agent
+    this.agentCoreRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: [
+        'bedrock:InvokeModel',
+        'bedrock:InvokeModelWithResponseStream',
+        'bedrock:GetAgent',
+        'bedrock:GetAgentAlias',
+      ],
+      resources: ['*'],
+    }));
+
     // Add permissions for S3 artifacts bucket
     this.agentCoreRole.addToPolicy(new iam.PolicyStatement({
       effect: iam.Effect.ALLOW,
