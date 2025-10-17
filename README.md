@@ -29,8 +29,8 @@ Security MCP    Cost MCP    ROI MCP
 │   ├── security-mcp/           # Security assessment MCP server
 │   ├── cost-mcp/               # Cost analysis MCP server
 │   └── roi-analytics-mcp/      # ROI analytics MCP server
-├── agents/                      # Agent implementations
-│   └── orchestrator/           # Bedrock Agent orchestrator
+├── adapters/                    # Protocol adapters
+│   └── mcp-adapter/            # Bedrock Agent to MCP Gateway adapter
 ├── dashboard/                   # Executive Dashboard
 │   ├── frontend/               # React frontend
 │   └── backend/                # API Gateway + Lambda

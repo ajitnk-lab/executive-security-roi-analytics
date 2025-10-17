@@ -29,7 +29,7 @@ export class BedrockAgentStack extends cdk.Stack {
     const mcpProxyFunction = new lambda.Function(this, 'MCPProxyFunction', {
       runtime: lambda.Runtime.PYTHON_3_10,
       handler: 'mcp_proxy.lambda_handler',
-      code: lambda.Code.fromAsset('../agents/mcp-proxy'),
+      code: lambda.Code.fromAsset('../adapters/mcp-adapter'),
       timeout: cdk.Duration.seconds(30),
       environment: {
         GATEWAY_URL: `https://${props.gateway.restApiId}.execute-api.${this.region}.amazonaws.com/prod`
