@@ -27,7 +27,9 @@ export class MCPDeploymentStack extends cdk.Stack {
           image: lambda.Runtime.PYTHON_3_10.bundlingImage,
           command: [
             'bash', '-c',
-            'pip install -r requirements.txt -t /asset-output && cp -au . /asset-output'
+            'pip install --no-cache-dir -r requirements.txt -t /asset-output --no-deps && ' +
+            'pip install --no-cache-dir boto3 mcp pydantic typing-extensions -t /asset-output && ' +
+            'cp -au *.py /asset-output'
           ],
         },
       }),
@@ -51,7 +53,9 @@ export class MCPDeploymentStack extends cdk.Stack {
           image: lambda.Runtime.PYTHON_3_10.bundlingImage,
           command: [
             'bash', '-c',
-            'pip install -r requirements.txt -t /asset-output && cp -au . /asset-output'
+            'pip install --no-cache-dir -r requirements.txt -t /asset-output --no-deps && ' +
+            'pip install --no-cache-dir boto3 mcp pydantic typing-extensions -t /asset-output && ' +
+            'cp -au *.py /asset-output'
           ],
         },
       }),
@@ -75,7 +79,8 @@ export class MCPDeploymentStack extends cdk.Stack {
           image: lambda.Runtime.PYTHON_3_10.bundlingImage,
           command: [
             'bash', '-c',
-            'pip install -r requirements.txt -t /asset-output && cp -au . /asset-output'
+            'pip install --no-cache-dir boto3 mcp pydantic typing-extensions -t /asset-output && ' +
+            'cp -au *.py /asset-output'
           ],
         },
       }),

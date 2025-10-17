@@ -31,10 +31,13 @@ export class AgentCoreStack extends cdk.Stack {
 
     // IAM Role for AgentCore runtime
     this.agentCoreRole = new iam.Role(this, 'AgentCoreRole', {
-      assumedBy: new iam.ServicePrincipal('bedrock.amazonaws.com'),
+      assumedBy: new iam.CompositePrincipal(
+        new iam.ServicePrincipal('bedrock.amazonaws.com'),
+        new iam.ServicePrincipal('lambda.amazonaws.com')
+      ),
       description: 'Role for AgentCore runtime to access AWS services',
       managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName('BedrockAgentCoreFullAccess'),
+        iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole'),
       ],
     });
 

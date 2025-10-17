@@ -8,8 +8,6 @@ import asyncio
 import json
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
-import pandas as pd
-import numpy as np
 from mcp.server import Server
 from mcp.types import Tool, TextContent
 import boto3
