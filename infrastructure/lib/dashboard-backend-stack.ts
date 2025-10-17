@@ -2,10 +2,12 @@ import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as cognito from 'aws-cdk-lib/aws-cognito';
 import { Construct } from 'constructs';
 
 export interface DashboardBackendStackProps extends cdk.StackProps {
   agentCoreRole: iam.Role;
+  authorizer?: apigateway.CognitoUserPoolsAuthorizer;
 }
 
 export class DashboardBackendStack extends cdk.Stack {
@@ -42,13 +44,19 @@ export class DashboardBackendStack extends cdk.Stack {
     // Create Lambda integration
     const lambdaIntegration = new apigateway.LambdaIntegration(this.dashboardFunction);
 
-    // Add chat endpoint
+    // Add chat endpoint with optional authentication
     const chatResource = this.api.root.addResource('chat');
-    chatResource.addMethod('POST', lambdaIntegration);
+    chatResource.addMethod('POST', lambdaIntegration, {
+      authorizer: props.authorizer,
+      authorizationType: props.authorizer ? apigateway.AuthorizationType.COGNITO : apigateway.AuthorizationType.NONE
+    });
 
-    // Add metrics endpoint
+    // Add metrics endpoint with optional authentication
     const metricsResource = this.api.root.addResource('metrics');
-    metricsResource.addMethod('GET', lambdaIntegration);
+    metricsResource.addMethod('GET', lambdaIntegration, {
+      authorizer: props.authorizer,
+      authorizationType: props.authorizer ? apigateway.AuthorizationType.COGNITO : apigateway.AuthorizationType.NONE
+    });
 
     // Outputs
     new cdk.CfnOutput(this, 'DashboardAPIUrl', {

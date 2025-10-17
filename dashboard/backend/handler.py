@@ -11,13 +11,25 @@ AGENT_ALIAS_ID = 'GCWHOE7WNP'
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
-    Lambda handler for dashboard backend API
+    Lambda handler for dashboard backend API with authentication
     """
     try:
         # Parse request
         http_method = event.get('httpMethod', '')
         path = event.get('path', '')
         body = event.get('body', '{}')
+        
+        # Check for authentication
+        auth_context = event.get('requestContext', {}).get('authorizer', {})
+        if not auth_context.get('claims'):
+            return {
+                'statusCode': 401,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
+                'body': json.dumps({'error': 'Unauthorized'})
+            }
         
         if body:
             body_data = json.loads(body)
@@ -42,9 +54,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         
         # Route requests
         if path == '/chat' and http_method == 'POST':
-            return handle_chat(body_data, headers)
+            return handle_chat(body_data, headers, auth_context)
         elif path == '/metrics' and http_method == 'GET':
-            return handle_metrics(headers)
+            return handle_metrics(headers, auth_context)
         else:
             return {
                 'statusCode': 404,
@@ -62,11 +74,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': str(e)})
         }
 
-def handle_chat(body_data: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, Any]:
+def handle_chat(body_data: Dict[str, Any], headers: Dict[str, str], auth_context: Dict[str, Any]) -> Dict[str, Any]:
     """Handle chat requests to Bedrock Agent"""
     try:
         message = body_data.get('message', '')
-        session_id = body_data.get('sessionId', 'executive-session')
+        session_id = body_data.get('sessionId', f"executive-{auth_context.get('claims', {}).get('sub', 'unknown')}")
         
         if not message:
             return {
@@ -106,7 +118,7 @@ def handle_chat(body_data: Dict[str, Any], headers: Dict[str, str]) -> Dict[str,
             'body': json.dumps({'error': f'Chat error: {str(e)}'})
         }
 
-def handle_metrics(headers: Dict[str, str]) -> Dict[str, Any]:
+def handle_metrics(headers: Dict[str, str], auth_context: Dict[str, Any]) -> Dict[str, Any]:
     """Handle metrics requests"""
     try:
         # Mock metrics data - in production, this would fetch real data
@@ -126,7 +138,8 @@ def handle_metrics(headers: Dict[str, str]) -> Dict[str, Any]:
                 'change': '+2 pts',
                 'trend': 'up'
             },
-            'lastUpdated': '2025-10-17T12:16:38.034Z'
+            'lastUpdated': '2025-10-17T12:26:17.080Z',
+            'user': auth_context.get('claims', {}).get('email', 'Unknown')
         }
         
         return {
